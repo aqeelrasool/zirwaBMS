@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { getOrders, deleteOrder, toggleOrderCompletion, getVendors } from '../store';
 import { PencilIcon, TrashIcon, EyeIcon, XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import Pagination from '../components/Pagination';
+
+const PAGE_SIZE = 10;
 
 function OrdersList() {
   const [orders, setOrders] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
 
@@ -32,11 +37,6 @@ function OrdersList() {
     loadOrders();
   };
 
-  const handleViewDetails = (order) => {
-    setSelectedOrder(order);
-    setShowDetails(true);
-  };
-
   const calculateOrderReceivable = (order) => {
     const totalPayments = order.payments.reduce((sum, pay) => sum + Number(pay.amount), 0);
     const grandTotal = Number(order.orderTotal) + Number(order.receivedDeliveryCharges);
@@ -44,16 +44,41 @@ function OrdersList() {
   };
 
   const calculateOrderProfit = (order) => {
-    const totalExpenses = order.expenses.reduce((sum, exp) => sum + Number(exp.amount), 0) + 
-                         Number(order.paidDeliveryCharges);
+    const totalExpenses = order.expenses.reduce((sum, exp) => sum + Number(exp.amount), 0)
+      + Number(order.paidDeliveryCharges);
     const grandTotal = Number(order.orderTotal) + Number(order.receivedDeliveryCharges);
     return grandTotal - totalExpenses;
   };
 
-  const filteredOrders = orders.filter(order => 
-    order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.customerPhone.includes(searchTerm)
-  );
+  const handleViewDetails = (order) => {
+    setSelectedOrder(order);
+    setShowDetails(true);
+  };
+
+  const filteredOrders = useMemo(() => orders.filter((order) => {
+    const matchSearch = order.customerName.toLowerCase().includes(searchTerm.toLowerCase())
+      || order.customerPhone.includes(searchTerm);
+
+    const matchStatus = statusFilter === 'all'
+      || (statusFilter === 'completed' && order.isCompleted)
+      || (statusFilter === 'pending' && !order.isCompleted);
+
+    return matchSearch && matchStatus;
+  }), [orders, searchTerm, statusFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedOrders = filteredOrders.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  useEffect(() => {
+    if (safePage !== currentPage) {
+      setCurrentPage(safePage);
+    }
+  }, [safePage, currentPage]);
 
   return (
     <div className="space-y-6">
@@ -65,14 +90,34 @@ function OrdersList() {
       </div>
 
       <div className="card">
-        <div className="mb-4">
+        <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <input
             type="text"
             placeholder="Search by customer name or phone..."
-            className="input-field"
+            className="input-field md:max-w-md"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+
+          <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+            {[
+              { label: 'All', value: 'all' },
+              { label: 'Completed', value: 'completed' },
+              { label: 'Pending', value: 'pending' },
+            ].map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setStatusFilter(option.value)}
+                className={`px-4 py-2 text-sm font-medium ${statusFilter === option.value
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -100,7 +145,7 @@ function OrdersList() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredOrders.map((order) => {
+              {paginatedOrders.map((order) => {
                 const profit = calculateOrderProfit(order);
                 return (
                   <tr key={order.id} className={`hover:bg-indigo-50 ${order.isCompleted ? 'bg-green-50' : ''}`}>
@@ -163,12 +208,25 @@ function OrdersList() {
                   </tr>
                 );
               })}
+              {paginatedOrders.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">
+                    No orders found.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={safePage}
+          totalItems={filteredOrders.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setCurrentPage}
+          itemLabel="orders"
+        />
       </div>
 
-      {/* Order Details Modal */}
       {showDetails && selectedOrder && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -184,7 +242,6 @@ function OrdersList() {
               </div>
 
               <div className="space-y-6">
-                {/* Customer Information */}
                 <div className="card">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Customer Information</h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -203,7 +260,6 @@ function OrdersList() {
                   </div>
                 </div>
 
-                {/* Order Summary */}
                 <div className="card">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Order Summary</h3>
                   <div className="space-y-2">
@@ -222,11 +278,10 @@ function OrdersList() {
                   </div>
                 </div>
 
-                {/* Expenses */}
                 <div className="card">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Expenses</h3>
                   <div className="space-y-2">
-                    {(selectedOrder.expenses || []).map(expense => (
+                    {(selectedOrder.expenses || []).map((expense) => (
                       <div key={expense.id} className="space-y-1 border border-gray-100 rounded-md p-3">
                         <div className="flex justify-between">
                           <span className="text-gray-600">{expense.description}</span>
@@ -234,7 +289,7 @@ function OrdersList() {
                         </div>
                         {expense.vendorId && (
                           <div className="text-xs text-gray-500 flex justify-between">
-                            <span>Vendor: {expense.vendorName || vendors.find(v => v.id === expense.vendorId)?.vendorName || 'N/A'}</span>
+                            <span>Vendor: {expense.vendorName || vendors.find((v) => v.id === expense.vendorId)?.vendorName || 'N/A'}</span>
                             <span>Status: <span className={expense.vendorPaymentStatus === 'paid' ? 'text-green-600' : 'text-yellow-600'}>{expense.vendorPaymentStatus || 'paid'}</span></span>
                           </div>
                         )}
@@ -251,11 +306,10 @@ function OrdersList() {
                   </div>
                 </div>
 
-                {/* Payments */}
                 <div className="card">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Payments</h3>
                   <div className="space-y-2">
-                    {(selectedOrder.payments || []).map(payment => (
+                    {(selectedOrder.payments || []).map((payment) => (
                       <div key={payment.id} className="flex justify-between">
                         <span className="text-gray-600">{new Date(payment.date).toLocaleDateString()}</span>
                         <span className="font-medium">PKR {Number(payment.amount).toFixed(2)}</span>
@@ -268,7 +322,6 @@ function OrdersList() {
                   </div>
                 </div>
 
-                {/* Final Summary */}
                 <div className="card">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Final Summary</h3>
                   <div className="space-y-2">
@@ -293,4 +346,4 @@ function OrdersList() {
   );
 }
 
-export default OrdersList; 
+export default OrdersList;

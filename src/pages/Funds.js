@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import Pagination from '../components/Pagination';
 import { getFunds, addFundTransaction, updateFundTransaction, deleteFundTransaction } from '../store';
 import { PlusIcon, ArrowsUpDownIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
+
+const PAGE_SIZE = 10;
 
 const Funds = () => {
   const [funds, setFunds] = useState([]);
@@ -11,6 +14,7 @@ const Funds = () => {
     date: new Date().toISOString().slice(0, 10),
   });
   const [editFundId, setEditFundId] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const refreshFunds = () => {
     setFunds(getFunds());
@@ -52,6 +56,16 @@ const Funds = () => {
   const totalWithdrawals = funds
     .filter((fund) => fund.type === 'withdraw')
     .reduce((sum, fund) => sum + Number(fund.amount), 0);
+
+  const totalPages = Math.max(1, Math.ceil(funds.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedFunds = funds.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  useEffect(() => {
+    if (safePage !== currentPage) {
+      setCurrentPage(safePage);
+    }
+  }, [safePage, currentPage]);
 
   return (
     <div className="space-y-6">
@@ -169,14 +183,14 @@ const Funds = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {funds.length === 0 && (
+              {paginatedFunds.length === 0 && (
                 <tr>
                   <td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">
                     No fund transactions recorded yet.
                   </td>
                 </tr>
               )}
-              {funds.map((fund) => (
+              {paginatedFunds.map((fund) => (
                 <tr key={fund.id} className={`hover:bg-violet-50 ring-1 ring-purple-50 ${fund.id % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{fund.description}</div>
@@ -233,6 +247,13 @@ const Funds = () => {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={safePage}
+          totalItems={funds.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setCurrentPage}
+          itemLabel="transactions"
+        />
       </div>
     </div>
   );

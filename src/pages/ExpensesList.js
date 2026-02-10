@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import Pagination from '../components/Pagination';
 import { getExpenses, addExpense, deleteExpense } from '../store';
-import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+
+const PAGE_SIZE = 10;
 
 function ExpensesList() {
   const [expenses, setExpenses] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
@@ -56,6 +60,20 @@ function ExpensesList() {
   );
 
   const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredExpenses.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedExpenses = filteredExpenses.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  useEffect(() => {
+    if (safePage !== currentPage) {
+      setCurrentPage(safePage);
+    }
+  }, [safePage, currentPage]);
 
   return (
     <div className="space-y-6">
@@ -159,7 +177,7 @@ function ExpensesList() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredExpenses.map((expense) => (
+              {paginatedExpenses.map((expense) => (
                 <tr key={expense.id} className="hover:bg-amber-50 ring-1 ring-amber-50 rounded-xl border-yellow-100">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{expense.description}</div>
@@ -182,9 +200,24 @@ function ExpensesList() {
                   </td>
                 </tr>
               ))}
+              {paginatedExpenses.length === 0 && (
+                <tr>
+                  <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">
+                    No expenses found.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={safePage}
+          totalItems={filteredExpenses.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setCurrentPage}
+          itemLabel="expenses"
+        />
 
         <div className="mt-4 pt-4 border-t border-gray-200">
           <div className="flex justify-between items-center">
