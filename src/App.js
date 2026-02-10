@@ -10,6 +10,7 @@ import OrderForm from './pages/OrderForm';
 import ExpensesList from './pages/ExpensesList';
 import Dashboard from './pages/Dashboard';
 import Vendors from './pages/Vendors';
+import VendorDetails from './pages/VendorDetails';
 import Funds from './pages/Funds';
 
 function App() {
@@ -110,6 +111,7 @@ function App() {
             <Route path="/orders/:id" element={<OrderForm />} />
             <Route path="/expenses" element={<ExpensesList />} />
             <Route path="/vendors" element={<Vendors />} />
+            <Route path="/vendors/:id" element={<VendorDetails />} />
             <Route path="/funds" element={<Funds />} />
           </Routes>
         </main>

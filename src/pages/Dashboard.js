@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Pagination from '../components/Pagination';
 import { getOrders, getExpenses, getFunds } from '../store';
 import { Link } from 'react-router-dom';
 import {
@@ -12,6 +13,7 @@ import {
 
 function Dashboard() {
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
   const [metrics, setMetrics] = useState({
     totalOrders: 0,
     totalReceivables: 0,
@@ -96,8 +98,7 @@ function Dashboard() {
     }, 0);
 
     const recentOrders = [...orders]
-      .sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate))
-      .slice(0, 5);
+      .sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate));
 
     setMetrics({
       totalOrders,
@@ -113,6 +114,17 @@ function Dashboard() {
     });
     setLoading(false);
   };
+
+  const recentOrdersPageSize = 5;
+  const totalPages = Math.max(1, Math.ceil(metrics.recentOrders.length / recentOrdersPageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedRecentOrders = metrics.recentOrders.slice((safePage - 1) * recentOrdersPageSize, safePage * recentOrdersPageSize);
+
+  useEffect(() => {
+    if (safePage !== currentPage) {
+      setCurrentPage(safePage);
+    }
+  }, [safePage, currentPage]);
 
   const MetricCard = ({ title, value, icon: Icon, trend, trendValue, gradient, textColor, unit='PKR' }) => (
     <div className={`rounded-2xl shadow-xl p-6 bg-gradient-to-tr ${gradient} hover:scale-105 transition-transform duration-300 cursor-pointer`}>
@@ -251,7 +263,7 @@ function Dashboard() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {metrics.recentOrders.map((order) => (
+              {paginatedRecentOrders.map((order) => (
                 <tr key={order.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{order.customerName}</div>
@@ -275,6 +287,13 @@ function Dashboard() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={safePage}
+          totalItems={metrics.recentOrders.length}
+          pageSize={recentOrdersPageSize}
+          onPageChange={setCurrentPage}
+          itemLabel="orders"
+        />
       </div>
     </div>
   );
