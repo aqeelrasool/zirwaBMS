@@ -18,6 +18,7 @@ function VendorDetails() {
   const [orders, setOrders] = useState([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState('pending');
 
   useEffect(() => {
     const currentVendor = getVendors().find((v) => v.id === id);
@@ -47,21 +48,30 @@ function VendorDetails() {
     return { totalAssigned, totalPaid, totalPending };
   }, [vendorTransactions]);
 
+  const filteredTransactions = useMemo(() => {
+    if (statusFilter === 'all') return vendorTransactions;
+    return vendorTransactions.filter((transaction) => (transaction.status || 'pending') === statusFilter);
+  }, [statusFilter, vendorTransactions]);
+
   const toggleTransactionStatus = (transaction) => {
     const newStatus = transaction.status === 'paid' ? 'pending' : 'paid';
     updateVendorTransactionStatus(transaction.id, newStatus);
     setRefreshKey((prev) => prev + 1);
   };
 
-  const totalPages = Math.max(1, Math.ceil(vendorTransactions.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / PAGE_SIZE));
   const safePage = Math.min(currentPage, totalPages);
-  const paginatedTransactions = vendorTransactions.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paginatedTransactions = filteredTransactions.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   useEffect(() => {
     if (safePage !== currentPage) {
       setCurrentPage(safePage);
     }
   }, [safePage, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter]);
 
   if (!vendor) {
     return (
@@ -104,7 +114,25 @@ function VendorDetails() {
       </div>
 
       <div className="card rounded-xl shadow-md border border-gray-100">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Transactions</h3>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Transactions</h3>
+          <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 self-start sm:self-auto">
+            {['pending', 'paid', 'all'].map((filterOption) => (
+              <button
+                key={filterOption}
+                type="button"
+                onClick={() => setStatusFilter(filterOption)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${
+                  statusFilter === filterOption
+                    ? 'bg-primary-100 text-primary-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {filterOption}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -192,7 +220,7 @@ function VendorDetails() {
         </div>
         <Pagination
           currentPage={safePage}
-          totalItems={vendorTransactions.length}
+          totalItems={filteredTransactions.length}
           pageSize={PAGE_SIZE}
           onPageChange={setCurrentPage}
           itemLabel="transactions"
