@@ -311,30 +311,30 @@ export const importDatabase = async () => {
       const fileContent = fs.readFileSync(filePath, 'utf8');
       const databaseData = JSON.parse(fileContent);
 
-      // Validate the imported data structure
-      if (databaseData.orders && Array.isArray(databaseData.orders) &&
-          databaseData.expenses && Array.isArray(databaseData.expenses)) {
-        
-        // Import the new data
-        ordersStore.set('orders', databaseData.orders);
-        expensesStore.set('expenses', databaseData.expenses);
-        if (databaseData.vendors && Array.isArray(databaseData.vendors)) {
-          vendorsStore.set('vendors', databaseData.vendors);
-        }
-        if (databaseData.vendorTransactions && Array.isArray(databaseData.vendorTransactions)) {
-          vendorTransactionsStore.set('transactions', databaseData.vendorTransactions);
-        }
-        if (databaseData.funds && Array.isArray(databaseData.funds)) {
-          fundsStore.set('funds', databaseData.funds);
-        }
-        
-        return { 
-          success: true, 
-          message: `Database imported successfully! Orders: ${databaseData.orders.length}, Expenses: ${databaseData.expenses.length}` 
-        };
-      } else {
-        return { success: false, message: 'Invalid database file format.' };
+      // Validate the imported data structure - more flexible validation
+      if (!databaseData.orders || !Array.isArray(databaseData.orders)) {
+        return { success: false, message: 'Invalid database file format: Missing or invalid orders data.' };
       }
+      
+      // Import the new data
+      ordersStore.set('orders', databaseData.orders || []);
+      expensesStore.set('expenses', databaseData.expenses || []);
+      vendorsStore.set('vendors', databaseData.vendors || []);
+      vendorTransactionsStore.set('transactions', databaseData.vendorTransactions || []);
+      fundsStore.set('funds', databaseData.funds || []);
+      
+      const importedStats = {
+        orders: databaseData.orders?.length || 0,
+        expenses: databaseData.expenses?.length || 0,
+        vendors: databaseData.vendors?.length || 0,
+        vendorTransactions: databaseData.vendorTransactions?.length || 0,
+        funds: databaseData.funds?.length || 0
+      };
+
+      return { 
+        success: true, 
+        message: `Database imported successfully! Orders: ${importedStats.orders}, Expenses: ${importedStats.expenses}, Vendors: ${importedStats.vendors}, Vendor Transactions: ${importedStats.vendorTransactions}, Funds: ${importedStats.funds}` 
+      };
     }
     return { success: false, message: 'Import cancelled.' };
   } catch (error) {

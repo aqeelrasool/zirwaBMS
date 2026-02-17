@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { getOrders, deleteOrder, toggleOrderCompletion, getVendors } from '../store';
-import { PencilIcon, TrashIcon, EyeIcon, XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, EyeIcon, XMarkIcon, CheckCircleIcon, PrinterIcon } from '@heroicons/react/24/outline';
 import Pagination from '../components/Pagination';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 15;
 
 function OrdersList() {
   const [orders, setOrders] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('pending');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
@@ -53,6 +53,259 @@ function OrdersList() {
   const handleViewDetails = (order) => {
     setSelectedOrder(order);
     setShowDetails(true);
+  };
+
+  const generateInvoiceHTML = (order) => {
+    const totalPayments = (order.payments || []).reduce((sum, pay) => sum + Number(pay.amount), 0);
+    const grandTotal = Number(order.orderTotal) + Number(order.receivedDeliveryCharges);
+    const receivable = grandTotal - totalPayments;
+    const totalExpenses = (order.expenses || []).reduce((sum, exp) => sum + Number(exp.amount), 0) + Number(order.paidDeliveryCharges);
+    const profit = grandTotal - totalExpenses;
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Invoice</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+          }
+          .container {
+            max-width: 800px;
+            margin: 0 auto;
+            border: 2px solid #333;
+            padding: 20px;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 28px;
+            color: #1f2937;
+          }
+          .header .invoice-title {
+            font-size: 18px;
+            margin-top: 5px;
+          }
+          .invoice-meta {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-size: 14px;
+          }
+          .customer-info {
+            margin-bottom: 20px;
+          }
+          .customer-info h3 {
+            margin-top: 0;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #555;
+          }
+          .customer-info p {
+            margin: 3px 0;
+            font-size: 14px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 13px;
+          }
+          th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+          }
+          th {
+            background-color: #f3f4f6;
+            font-weight: bold;
+          }
+          td {
+            background-color: #fafafa;
+          }
+          .amount-col {
+            text-align: right;
+          }
+          .summary {
+            margin: 20px 0;
+            font-size: 13px;
+          }
+          .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #ddd;
+          }
+          .summary-row.total {
+            font-weight: bold;
+            font-size: 15px;
+            border-bottom: 2px solid #333;
+            padding-top: 10px;
+          }
+          .summary-row.final {
+            font-weight: bold;
+            font-size: 16px;
+            border-bottom: 2px solid #333;
+            color: ${profit >= 0 ? '#059669' : '#dc2626'};
+          }
+          .payment-section {
+            margin: 20px 0;
+            font-size: 13px;
+          }
+          .payment-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+          }
+          @media print {
+            body { margin: 0; }
+            .container { border: none; padding: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Tiny Threads By Zirwa</h1>
+            <div class="invoice-title">INVOICE</div>
+          </div>
+
+          <div class="invoice-meta">
+            <div>
+              <strong>Invoice No:</strong> ${order.id.substring(0, 8)}<br>
+              <strong>Date:</strong> ${new Date(order.createdAt || order.orderDate).toLocaleDateString()}
+            </div>
+            <div>
+              <strong>Order Date:</strong> ${new Date(order.orderDate).toLocaleDateString()}
+            </div>
+          </div>
+
+          <div class="customer-info">
+            <h3>CUSTOMER INFO</h3>
+            <p><strong>Name:</strong> ${order.customerName}</p>
+            <p><strong>Phone:</strong> ${order.customerPhone}</p>
+            <p><strong>Description:</strong> ${order.orderDescription}</p>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th class="amount-col">Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(order.items || []).map(item => `
+                <tr>
+                  <td>${item.itemName}</td>
+                  <td class="amount-col">PKR ${Number(item.itemPrice).toFixed(2)}</td>
+                </tr>
+              `).join('')}
+              ${order.items && order.items.length > 0 ? '' : '<tr><td colspan="2"><em>No items listed</em></td></tr>'}
+            </tbody>
+          </table>
+
+          <div class="summary">
+            <div class="summary-row">
+              <span>Subtotal (Items):</span>
+              <span>PKR ${((order.items || []).reduce((sum, item) => sum + Number(item.itemPrice), 0)).toFixed(2)}</span>
+            </div>
+            <div class="summary-row">
+              <span>Order Total:</span>
+              <span>PKR ${Number(order.orderTotal).toFixed(2)}</span>
+            </div>
+            <div class="summary-row">
+              <span>Delivery Charges:</span>
+              <span>PKR ${Number(order.receivedDeliveryCharges).toFixed(2)}</span>
+            </div>
+            <div class="summary-row total">
+              <span>Grand Total:</span>
+              <span>PKR ${grandTotal.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div class="payment-section">
+            <h3>PAYMENTS RECEIVED</h3>
+            ${(order.payments && order.payments.length > 0) ? `
+              ${(order.payments || []).map(payment => `
+                <div class="payment-item">
+                  <span>${new Date(payment.date).toLocaleDateString()}</span>
+                  <span>PKR ${Number(payment.amount).toFixed(2)}</span>
+                </div>
+              `).join('')}
+              <div class="payment-item" style="border-top: 1px solid #ddd; padding-top: 8px; margin-top: 8px; font-weight: bold;">
+                <span>Total Paid:</span>
+                <span>PKR ${totalPayments.toFixed(2)}</span>
+              </div>
+            ` : '<div class="payment-item"><em>No payments recorded</em></div>'}
+          </div>
+
+          <div class="summary">
+            <div class="summary-row">
+              <span>Pending Amount:</span>
+              <span>PKR ${receivable.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  const handlePrintInvoice = async (order) => {
+    try {
+      // Create a temporary container for the invoice
+      const invoiceHTML = generateInvoiceHTML(order);
+      const tempContainer = document.createElement('div');
+      tempContainer.innerHTML = invoiceHTML;
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.width = '210mm';
+      tempContainer.style.height = '297mm';
+      document.body.appendChild(tempContainer);
+
+      // Try to use html2pdf if available
+      const html2pdf = window.html2pdf?.default || window.html2pdf;
+      
+      if (html2pdf) {
+        const filename = `Invoice_${order.customerName.replace(/\s+/g, '_')}_${new Date(order.orderDate).toLocaleDateString().replace(/\//g, '-')}.pdf`;
+        
+        const opt = {
+          margin: [10, 10, 10, 10],
+          filename: filename,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+        };
+
+        await html2pdf().set(opt).from(tempContainer).save();
+      } else {
+        // Fallback: Show message and offer print option
+        alert('PDF library not loaded. The invoice will open in print dialog. You can save as PDF from your browser print settings (Ctrl+P or Cmd+P).');
+        
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(invoiceHTML);
+        printWindow.document.close();
+        setTimeout(() => {
+          printWindow.print();
+        }, 250);
+      }
+
+      // Clean up
+      document.body.removeChild(tempContainer);
+    } catch (error) {
+      console.error('Error generating invoice:', error);
+      alert('Error generating invoice: ' + error.message);
+    }
   };
 
   const filteredOrders = useMemo(() => orders.filter((order) => {
@@ -191,6 +444,13 @@ function OrdersList() {
                         className="text-primary-600 hover:text-primary-900 mr-4"
                       >
                         <EyeIcon className="h-5 w-5 inline" />
+                      </button>
+                      <button
+                        onClick={() => handlePrintInvoice(order)}
+                        className="text-green-600 hover:text-green-900 mr-4"
+                        title="Print Invoice"
+                      >
+                        <PrinterIcon className="h-5 w-5 inline" />
                       </button>
                       <Link
                         to={`/orders/${order.id}`}

@@ -16,11 +16,14 @@ function OrderForm() {
     orderTotal: 0,
     receivedDeliveryCharges: 0,
     paidDeliveryCharges: 0,
+    items: [],
     expenses: [],
     payments: []
   });
 
   const [vendors, setVendors] = useState([]);
+  const [newItem, setNewItem] = useState({ itemName: '', itemPrice: 0 });
+  const [editItemId, setEditItemId] = useState(null);
   const [newExpense, setNewExpense] = useState({ description: '', amount: 0, vendorId: '', vendorPaymentStatus: 'paid' });
   const [newPayment, setNewPayment] = useState({ date: new Date().toISOString().split('T')[0], amount: 0 });
   const [editExpenseId, setEditExpenseId] = useState(null);
@@ -34,6 +37,10 @@ function OrderForm() {
       if (order) {
         setFormData({
           ...order,
+          items: (order.items || []).map(item => ({
+            ...item,
+            id: item.id || `${Date.now()}-${Math.random()}`
+          })),
           expenses: (order.expenses || []).map(exp => ({
             ...exp,
             id: exp.id || `${Date.now()}-${Math.random()}`
@@ -49,6 +56,59 @@ function OrderForm() {
     setFormData(prev => ({
       ...prev,
       [name]: value
+    }));
+  };
+
+  const handleAddItem = () => {
+    if (newItem.itemName && newItem.itemPrice > 0) {
+      setFormData(prev => ({
+        ...prev,
+        items: [
+          ...prev.items,
+          {
+            ...newItem,
+            itemPrice: Number(newItem.itemPrice),
+            id: Date.now().toString()
+          }
+        ]
+      }));
+      setNewItem({ itemName: '', itemPrice: 0 });
+    }
+  };
+
+  const handleRemoveItem = (itemId) => {
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.filter(i => i.id !== itemId)
+    }));
+  };
+
+  const handleEditItem = (item) => {
+    setEditItemId(item.id);
+    setNewItem({
+      itemName: item.itemName,
+      itemPrice: item.itemPrice
+    });
+  };
+
+  const handleUpdateItem = () => {
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.map(i => i.id === editItemId ? { ...i, ...newItem, itemPrice: Number(newItem.itemPrice) } : i)
+    }));
+    setEditItemId(null);
+    setNewItem({ itemName: '', itemPrice: 0 });
+  };
+
+  const calculateItemsTotal = () => {
+    return formData.items.reduce((sum, item) => sum + Number(item.itemPrice), 0);
+  };
+
+  const populateOrderTotal = () => {
+    const itemsTotal = calculateItemsTotal();
+    setFormData(prev => ({
+      ...prev,
+      orderTotal: itemsTotal
     }));
   };
 
@@ -115,6 +175,10 @@ function OrderForm() {
       orderTotal: Number(formData.orderTotal),
       receivedDeliveryCharges: Number(formData.receivedDeliveryCharges),
       paidDeliveryCharges: Number(formData.paidDeliveryCharges),
+      items: formData.items.map(item => ({
+        ...item,
+        itemPrice: Number(item.itemPrice)
+      })),
       expenses: formData.expenses.map(exp => ({
         ...exp,
         amount: Number(exp.amount),
@@ -227,16 +291,182 @@ function OrderForm() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Order Total Amount</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  name="orderTotal"
+                  value={formData.orderTotal}
+                  onChange={handleInputChange}
+                  className="input-field flex-1"
+                  min="0"
+                  step="0.01"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={populateOrderTotal}
+                  className="px-3 py-2 rounded-md bg-blue-100 text-blue-800 font-semibold hover:bg-blue-200 whitespace-nowrap"
+                  title="Auto-populate from items total"
+                >
+                  Auto Sum
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Items Section */}
+        <div className="card">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">Items</h2>
+          <div className="space-y-4">
+            {formData.items.map(item => (
+              <div key={item.id} className={`space-y-2 border border-gray-100 rounded-lg p-4 ${editItemId === item.id ? 'bg-blue-50' : ''}`}>
+                <div className="flex items-center space-x-4">
+                  {editItemId === item.id ? (
+                    <>
+                      <input
+                        type="text"
+                        value={newItem.itemName}
+                        onChange={(e) => setNewItem(prev => ({ ...prev, itemName: e.target.value }))}
+                        placeholder="Item name"
+                        className="input-field flex-1"
+                      />
+                      <input
+                        type="number"
+                        value={newItem.itemPrice}
+                        onChange={(e) => setNewItem(prev => ({ ...prev, itemPrice: e.target.value }))}
+                        placeholder="Item price"
+                        className="input-field w-32"
+                        min="0"
+                        step="0.01"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleUpdateItem}
+                        className="px-3 py-1 rounded-full bg-green-100 text-green-800 font-semibold mr-2 shadow hover:bg-green-200"
+                      >
+                        Done
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditItemId(null);
+                          setNewItem({ itemName: '', itemPrice: 0 });
+                        }}
+                        className="px-3 py-1 rounded-full bg-gray-100 text-gray-700 font-semibold shadow hover:bg-gray-200"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={item.itemName}
+                          readOnly
+                          className="input-field"
+                        />
+                      </div>
+                      <div className="w-32">
+                        <input
+                          type="number"
+                          value={item.itemPrice}
+                          readOnly
+                          className="input-field"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleEditItem(item)}
+                        className="px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-semibold mr-2 shadow hover:bg-blue-200"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(item.id)}
+                        className="px-3 py-1 rounded-full bg-red-100 text-red-800 font-semibold shadow hover:bg-red-200"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+            <div className="flex items-center space-x-4">
+              <input
+                type="text"
+                placeholder="Item name"
+                value={newItem.itemName}
+                onChange={(e) => setNewItem(prev => ({ ...prev, itemName: e.target.value }))}
+                className="input-field flex-1"
+              />
               <input
                 type="number"
-                name="orderTotal"
-                value={formData.orderTotal}
-                onChange={handleInputChange}
-                className="input-field"
+                placeholder="Price"
+                value={newItem.itemPrice}
+                onChange={(e) => setNewItem(prev => ({ ...prev, itemPrice: e.target.value }))}
+                className="input-field w-32"
                 min="0"
                 step="0.01"
+              />
+              <button
+                type="button"
+                onClick={handleAddItem}
+                className="text-primary-600 hover:text-primary-900"
+              >
+                <PlusIcon className="h-5 w-5" />
+              </button>
+            </div>
+            {formData.items.length > 0 && (
+              <div className="mt-4 pt-4 border-t">
+                <div className="flex justify-between font-semibold">
+                  <span>Items Total:</span>
+                  <span>PKR {calculateItemsTotal().toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Order Details */}
+        <div className="card space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Order Date</label>
+              <input
+                type="date"
+                name="orderDate"
+                value={formData.orderDate}
+                onChange={handleInputChange}
+                className="input-field"
                 required
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Order Total Amount</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  name="orderTotal"
+                  value={formData.orderTotal}
+                  onChange={handleInputChange}
+                  className="input-field flex-1"
+                  min="0"
+                  step="0.01"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={populateOrderTotal}
+                  className="px-3 py-2 rounded-md bg-blue-100 text-blue-800 font-semibold hover:bg-blue-200 whitespace-nowrap"
+                  title="Auto-populate from items total"
+                >
+                  Auto Sum
+                </button>
+              </div>
             </div>
           </div>
 
